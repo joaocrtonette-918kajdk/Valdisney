@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#71351f">
 <title>Valdisney — Assistente do Sertão</title>
 
 <style>
@@ -96,6 +97,7 @@ main {
 }
 
 .hill.one { left: -40px; }
+
 .hill.two {
   right: -40px;
   bottom: -55px;
@@ -199,9 +201,7 @@ h1 span { color: var(--clay); }
   cursor: pointer;
 }
 
-.quick:hover {
-  background: #e7c99a;
-}
+.quick:hover { background: #e7c99a; }
 
 .chat {
   height: 390px;
@@ -211,6 +211,7 @@ h1 span { color: var(--clay); }
 
 .messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -247,7 +248,7 @@ h1 span { color: var(--clay); }
   border-top: 1px solid #ddc5a0;
 }
 
-input {
+.input-area input {
   flex: 1;
   min-width: 0;
   padding: 12px;
@@ -269,6 +270,11 @@ input {
 }
 
 .send:hover { background: #3c4c30; }
+
+.send:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
 
 footer {
   margin-top: 25px;
@@ -295,7 +301,7 @@ footer {
 <body>
 <header>
   <div class="logo">VALDI<span>SNEY</span></div>
-  <div class="status">● PRONTO PARA AJUDAR</div>
+  <div class="status" id="status">● PRONTO PARA AJUDAR</div>
 </header>
 
 <main>
@@ -351,7 +357,7 @@ footer {
 
 Sou o Valdisney, seu assistente pessoal. Posso ajudar a organizar suas tarefas, pensar em projetos e explicar assuntos.
 
-Por enquanto, estou em modo de demonstração. Ainda preciso ser conectado a uma IA de verdade para responder livremente.</div>
+Agora estou sendo preparado para conversar com uma inteligência artificial de verdade.</div>
         </div>
 
         <form class="input-area" id="chatForm">
@@ -375,9 +381,17 @@ Por enquanto, estou em modo de demonstração. Ainda preciso ser conectado a uma
 </footer>
 
 <script>
+// COLOQUE AQUI O ENDEREÇO REAL DO SEU WORKER DA CLOUDFLARE.
+const API_URL = "https://https://valdisney-api.joaocrtonette.workers.dev/.workers.dev";
+
 const messages = document.getElementById("messages");
 const input = document.getElementById("userInput");
 const form = document.getElementById("chatForm");
+const sendButton = form.querySelector(".send");
+const status = document.getElementById("status");
+
+const conversation = [];
+let sending = false;
 
 function addMessage(text, type) {
   const el = document.createElement("div");
@@ -385,41 +399,102 @@ function addMessage(text, type) {
   el.textContent = text;
   messages.appendChild(el);
   messages.scrollTop = messages.scrollHeight;
+  return el;
 }
 
-function respond(text) {
-  const q = text.toLowerCase();
-
-  if (q.includes("ideia")) {
-    return "Bora pensar nisso. Qual é o objetivo do seu projeto, para quem ele é feito e quais são suas limitações? Com essas informações, podemos sair do genérico.";
-  }
-
-  if (q.includes("tarefa") || q.includes("organizar")) {
-    return "Vamos botar ordem na casa:\n\n1. Anote tudo o que precisa fazer.\n2. Escolha o que tem maior prioridade.\n3. Divida a tarefa em etapas pequenas.\n4. Comece pela primeira etapa.\n\nQuais são suas tarefas?";
-  }
-
-  if (q.includes("program") || q.includes("código") || q.includes("codigo")) {
-    return "Vamos trabalhar nesse projeto. Diga qual linguagem está usando, o que deseja construir e onde está encontrando dificuldade.";
-  }
-
-  if (q.includes("oi") || q.includes("olá") || q.includes("ola")) {
-    return "Ô de casa! Pode falar. O que você precisa resolver hoje?";
-  }
-
-  if (q.includes("problema") || q.includes("resolver")) {
-    return "Primeiro, vamos entender o caso. O que aconteceu, o que você queria que acontecesse e o que já tentou fazer?";
-  }
-
-  return "Recebi sua mensagem: \"" + text + "\"\n\nEsta versão ainda está funcionando sem um modelo de IA conectado. Para eu pesquisar, raciocinar e responder perguntas variadas de verdade, precisamos integrar uma API de IA.";
-}
-
-function sendMessage(text) {
+async function sendMessage(text) {
   const clean = text.trim();
-  if (!clean) return;
 
+  if (!clean || sending) return;
+
+  if (API_URL.includes("https://valdisney-api.joaocrtonette.workers.dev/")) {
+    addMessage(
+      "Ainda falta configurar o endereço do Worker da Cloudflare no código do site.",
+      "bot"
+    );
+    return;
+  }
+
+  sending = true;
   addMessage(clean, "user");
   input.value = "";
-  addMessage(respond(clean), "bot");
+  input.disabled = true;
+  sendButton.disabled = true;
+  sendButton.textContent = "Pensando...";
+  status.textContent = "● PENSANDO...";
+
+  conversation.push({
+    role: "user",
+    content: clean
+  });
+
+  const loading = addMessage(
+    "Oxente, deixe eu pensar...",
+    "bot"
+  );
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messages: conversation.slice(-12)
+      })
+    });
+
+    let data;
+
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(
+        "A Cloudflare retornou uma resposta inválida."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Erro HTTP " + response.status
+      );
+    }
+
+    if (typeof data.reply !== "string") {
+      throw new Error("A IA não retornou uma resposta válida.");
+    }
+
+    loading.textContent = data.reply;
+
+    conversation.push({
+      role: "assistant",
+      content: data.reply
+    });
+
+    if (conversation.length > 12) {
+      conversation.splice(0, conversation.length - 12);
+    }
+
+    status.textContent = "● PRONTO PARA AJUDAR";
+
+  } catch (error) {
+    console.error("Erro do Valdisney:", error);
+
+    loading.textContent =
+      "Vixe, não consegui me conectar à inteligência artificial.\n\n" +
+      "Detalhe: " + error.message +
+      "\n\nConfira o endereço do Worker e a configuração da Cloudflare.";
+
+    status.textContent = "● ERRO NA CONEXÃO";
+
+  } finally {
+    sending = false;
+    input.disabled = false;
+    sendButton.disabled = false;
+    sendButton.textContent = "Mandar";
+    input.focus();
+    messages.scrollTop = messages.scrollHeight;
+  }
 }
 
 form.addEventListener("submit", function(event) {
@@ -428,7 +503,7 @@ form.addEventListener("submit", function(event) {
 });
 
 document.querySelectorAll("[data-prompt]").forEach(button => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", function() {
     sendMessage(button.dataset.prompt);
   });
 });
