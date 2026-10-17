@@ -382,7 +382,7 @@ Agora estou sendo preparado para conversar com uma inteligência artificial de v
 
 <script>
 // COLOQUE AQUI O ENDEREÇO REAL DO SEU WORKER DA CLOUDFLARE.
-const API_URL = "https://valdisney-api.joaocrtonette.workers.dev/";
+const API_URL = "https://valdisney-api.joaocrtonette.workers.dev";
 
 const messages = document.getElementById("messages");
 const input = document.getElementById("userInput");
@@ -407,14 +407,7 @@ async function sendMessage(text) {
 
   if (!clean || sending) return;
 
-  if (API_URL.includes("https://valdisney-api.joaocrtonette.workers.dev/")) {
-    addMessage(
-      "Ainda falta configurar o endereço do Worker da Cloudflare no código do site.",
-      "bot"
-    );
-    return;
-  }
-
+ 
   sending = true;
   addMessage(clean, "user");
   input.value = "";
